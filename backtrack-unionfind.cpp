@@ -273,6 +273,7 @@ public:
 	float* edgeWeight;
 	int* edgeIndex;
 	int* vertexDegrees;
+	int* vertexProhibitedDegrees;
 	UnionOperation* unionsList;
 	int unionCounter;
 	int* unionEdges;
@@ -281,6 +282,7 @@ public:
 	MBVSolutionUndo(Graph &sourceGraph) : 
 	G(&sourceGraph), branchVertexCount(0), activeEdgeCount(0), unionCounter(0) {
 		vertexDegrees = new int[G->nVertices];
+		vertexProhibitedDegrees = new int[G->nVertices];
 		vertexConnected = new UnionFind(G->nVertices);
 		edgeState = new int[G->mEdges];
 		edgeWeight = new float[G->mEdges];
@@ -293,6 +295,7 @@ public:
 		for (int v = 0; v < G->nVertices; ++v)
 		{
 			vertexDegrees[v] = 0;
+			vertexProhibitedDegrees[v] = 0;
 		}
 
 		for (int e = 0; e < G->mEdges; ++e)
@@ -300,20 +303,10 @@ public:
 			edgeState[e] = 0;
 			edgeWeight[e] = 0.0;
 			edgeIndex[e] = e;
-
-			//Prepare "heuristic" weights for sorting
-			deg = G->edges[e].first;
-			if(deg > 2) {
-				edgeWeight[e] += 1.0/deg;
-			}
-			deg = G->edges[e].second;
-			if(deg > 2) {
-				edgeWeight[e] += 1.0/deg;
-			}
 		}
 
 		//sort
-		sort(edgeIndex, edgeIndex+G->mEdges, sort_indices(edgeWeight));
+		sortEdges(edgeIndex);
 
 		cout<<"Sorted!"<<endl;
 	}
@@ -343,6 +336,30 @@ public:
 			delete [] edgeIndex;
 		}
 		/**/
+	}
+
+	void sortEdges(int* edgeIndexList) {
+		int deg = 0;
+		int v = 0;
+		for (int e = 0; e < G->mEdges; ++e)
+		{
+			edgeIndexList[e] = e;
+
+			//Prepare "heuristic" weights for sorting
+			v = G->edges[e].first;
+			deg = G->vertexDegrees[v];
+			if(deg > (2 - vertexProhibitedDegrees[v])) {
+				edgeWeight[e] += 1.0/deg;
+			}
+			v = G->edges[e].second;
+			deg = G->vertexDegrees[v];
+			if(deg > (2 - vertexProhibitedDegrees[v])) {
+				edgeWeight[e] += 1.0/deg;
+			}
+		}
+
+		//sort
+		sort(edgeIndexList, edgeIndexList+G->mEdges, sort_indices(edgeWeight));
 	}
 
 	int getEdgeState(int e) {
