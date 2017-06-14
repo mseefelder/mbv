@@ -319,7 +319,7 @@ int Backtrack(Graph &G, MBVSolution &sol, int &minimumSol, auto &start)
 {
 	int e = 0;
 	// Prune by inviability
-	if (sol.getBranchVertexCount() >= minimumSol) {
+	if (sol.getBranchVertexCount() >= minimumSol || minimumSol == 0) {
 		return minimumSol;
 	}
 	// A valid solution was found
@@ -372,6 +372,7 @@ int main(int argc, char const *argv[])
 
 	int minimumSol = numeric_limits<int>::max();
 	MBVSolution S(G);
+	MBVSolution initialKruskal(G);
 
 	//make bridges obligatory
 	for (int i = 0; i < nVertices; ++i)
@@ -382,6 +383,19 @@ int main(int argc, char const *argv[])
 		}
 	}
 
+	//Run Kruskal to get a headstart
+	int e = 0;
+	for (int i = 0; i < mEdges; ++i)
+	{
+		e = initialKruskal.edgeIndex[i];
+		initialKruskal.activateEdge(e);
+		if(initialKruskal.getActiveEdgeCount() == mEdges - 1 ){
+			break;
+		}
+	}
+
+	minimumSol = initialKruskal.getBranchVertexCount();
+	
 	auto start = chrono::steady_clock::now();
 	minimumSol = Backtrack(G, S, minimumSol, start);
 	auto end = chrono::steady_clock::now();
