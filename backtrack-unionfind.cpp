@@ -327,10 +327,20 @@ public:
 	}
 
 	void prohibitEdge(int e) {
+		//Vertices connected by edge
+		int u = G->edges[e].first;
+		int v = G->edges[e].second;
+		vertexProhibitedDegrees[u]++;
+		vertexProhibitedDegrees[v]++;
 		edgeState[e] = -1;
 	}
 
 	void undoProhibitEdge(int e) {
+		//Vertices connected by edge
+		int u = G->edges[e].first;
+		int v = G->edges[e].second;
+		vertexProhibitedDegrees[u]--;
+		vertexProhibitedDegrees[v]--;
 		edgeState[e] = 0;
 	}
 
@@ -375,8 +385,39 @@ int Backtrack(Graph &G, MBVSolutionUndo &sol, int &minimumSol, auto &start)
 				}
 
 				sol.prohibitEdge(e);
+				/*
+				sol.sortEdges();
+
+				//Try kruskal ---
+				int ke = 0;
+				int opcount = 0;
+				for (int k = 0; k < G.mEdges; ++k)
+				{
+					ke = sol.edgeIndex[k];
+					if(sol.activateEdge(ke)) opcount++;
+					if(sol.getActiveEdgeCount() == G.nVertices - 1 ){
+						break;
+					}
+				}
+
+				if(sol.getBranchVertexCount() < minimumSol) {
+					cout<<"Solution on Kruskal"<<sol.getBranchVertexCount()<<"(";
+					auto end = chrono::steady_clock::now();
+					cout << chrono::duration <double, milli> (end-start).count() << " ms)" << endl;
+					minimumSol = sol.getBranchVertexCount();
+				}
+
+				for (int x = 0; x < opcount; ++x)
+				{
+					sol.undoActivateEdge();
+				}
+
+				//            ---
+				*/
+
 				minimumSol = Backtrack(G, sol, minimumSol, start);
 				sol.undoProhibitEdge(e);
+				//sol.sortEdges();
 
 				break;
 			}
@@ -421,7 +462,7 @@ int main(int argc, char const *argv[])
 	{
 		e = initialKruskal.edgeIndex[i];
 		initialKruskal.activateEdge(e);
-		if(initialKruskal.getActiveEdgeCount() == mEdges - 1 ){
+		if(initialKruskal.getActiveEdgeCount() == nVertices - 1 ){
 			break;
 		}
 	}
