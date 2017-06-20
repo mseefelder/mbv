@@ -13,85 +13,6 @@
 
 using namespace std;
 
-int Backtrack(Graph &G, MBVSolutionUndo &sol, int &minimumSol, auto &start, long long *pruneCount, int &depth, float &resortRatio)
-{
-	depth++;
-	bool resort = (depth <= resortRatio*G.mEdges);
-	int e = 0;
-	int pruneBin = (depth*10.0)/(G.mEdges-1);
-	//if(pruneBin > 9) cout<<"EITA "<<depth<<" "<<G.nVertices-1<<endl;
-	// Prune by inviability
-	if (sol.getBranchVertexCount() >= minimumSol || minimumSol == 0) {
-		pruneCount[pruneBin]++;
-	}
-	// A valid solution was found
-	else if (sol.getActiveEdgeCount() == G.nVertices-1) {
-		if(sol.getBranchVertexCount() < minimumSol) {
-			//cout<<"Solution "<<sol.getBranchVertexCount()<<"(";
-			//auto end = chrono::steady_clock::now();
-			//cout << chrono::duration <double, milli> (end-start).count() << " ms)" << endl;
-			minimumSol = sol.getBranchVertexCount();
-		}
-	}
-	// No solution yet
-	else{
-		for (int i = 0; i<G.mEdges; i++) {
-			e = sol.edgeIndex[i];
-
-			if(sol.getEdgeState(e) == 0) {
-				if(sol.activateEdge(e)) {
-					minimumSol = Backtrack(G, sol, minimumSol, start, pruneCount, depth, resortRatio);
-					sol.undoActivateEdge();
-				}
-
-				sol.prohibitEdge(e);
-				if(resort) sol.sortEdges();
-
-				//Try kruskal ---
-				int ke = 0;
-				int opcount = 0;
-				for (int k = 0; k < G.mEdges; ++k) {
-					ke = sol.edgeIndex[k];
-					if(sol.activateEdge(ke)) 
-					{
-						opcount++;
-					}
-					if(sol.getActiveEdgeCount() == G.nVertices - 1 ){
-						break;
-					}
-				}
-
-				if(sol.getBranchVertexCount() < minimumSol && sol.getActiveEdgeCount() == G.nVertices-1) {
-					//cout<<"Solution on Kruskal "<<sol.getBranchVertexCount()<<"(";
-					//auto end = chrono::steady_clock::now();
-					//cout << chrono::duration <double, milli> (end-start).count() << " ms)" << endl;
-					minimumSol = sol.getBranchVertexCount();
-				}
-
-				//Check if we should branch. Only branch if relaxed bound is < minimumSol and graph is connex
-				bool doBranch = (sol.getRelaxedSolution() < minimumSol) && (sol.getActiveEdgeCount() == G.nVertices-1);
-				if(!doBranch)
-						pruneCount[pruneBin]++;
-
-				for (int x = 0; x < opcount; ++x) {
-					sol.undoActivateEdge();
-				}
-
-				//
-				if(doBranch)
-						minimumSol = Backtrack(G, sol, minimumSol, start, pruneCount, depth, resortRatio);
-
-				sol.undoProhibitEdge(e);
-				if(resort) sol.sortEdges();
-				break;
-			}
-
-		}
-	}
-	depth--;
-	return minimumSol;
-}
-
 void DFS (Graph &G, unordered_set<int>* neig, unordered_set<int> &result, int source, int destination) {
 
 	//Auxiliary queue used during the algorithm
@@ -337,7 +258,6 @@ int main(int argc, char const *argv[])
 	int nVertices, mEdges, trash;
 
 	cin >> nVertices >> mEdges >> trash;
-	cout << nVertices << " vertices and " << mEdges << " edges."<<endl;
 
 	// Create and fill Graph
 	Graph G(nVertices, mEdges);
@@ -347,62 +267,38 @@ int main(int argc, char const *argv[])
 		G.addEdge(a-1, b-1);
 	}
 
-	// Calculate heuristic starting point
-	int heuristicResult = MBVGrasp (G, (int)(mEdges*0.8), (int)(mEdges*0.75));
-	cout<<"Best heuristic result: "<<heuristicResult<<endl;
-	int minimumSol = heuristicResult;
-	
-	int repetitions = 10;
-	auto timeAccum = chrono::duration <double, milli>(0.0).count();
-	bool first = true;
+	MBVSolutionUndo initialKruskal(G);
 
-	float rrs[10] = {0.01, 0.025, 0.05, 0.075, 0.1, 0.15, 0.20, 0.25, 0.35, 0.50};
-
-	cout<<"rr\tsolution\tpc[0]\tpc[1]\tpc[2]\tpc[3]\tpc[4]\tpc[5]\tpc[6]\tpc[7]\tpc[8]\tpc[9]\ttime(ms)"<<endl;
-
-	for (int repetition = 0; repetition < repetitions; repetition++) {
-		// Make solution that will be used on branch and bound
-		MBVSolutionUndo S(G);
-
-		//make bridges obligatory
-		for (int i = 0; i < nVertices; ++i)
+	//make bridges obligatory
+	for (int i = 0; i < nVertices; ++i)
+	{
+		if (G.vertexDegrees[i] == 1)
 		{
-			if (G.vertexDegrees[i] == 1)
-			{
-				S.activateEdge(G.vertices[i].front());
-			}
+			initialKruskal.activateEdge(G.vertices[i].front());
 		}
-
-		long long pruneCount[10] = {0,0,0,0,0,0,0,0,0,0};
-		int depth = -1;
-		float rr = rrs[repetition];
-
-		int solution = minimumSol;
-
-		auto start = chrono::steady_clock::now();
-		solution = Backtrack(G, S, solution, start, pruneCount, depth, rr);
-		auto end = chrono::steady_clock::now();
-		auto dur = chrono::duration <double, milli> (end-start).count();
-
-		cout<<rr<<"\t"<<solution<<"\t";
-		for(long long pc : pruneCount) cout<<pc<<"\t";
-		cout<<dur<<endl;
-
-		if(first){
-			timeAccum = dur;
-			first = false;
-		}
-		else {
-			timeAccum += dur;
-		}
-		
 	}
-	
 
+	auto start = chrono::steady_clock::now();
 
-	//cout << "Solution has " << minimumSol << " branch vertices! (mean time: ";
-	cout << "(" << timeAccum/(float)(repetitions) << " ms), ";
-	cout << endl;
+	for(int x : initialKruskal.edgeIndex) cout<<x<<", ";
+	cout<<endl;
+
+	//Run Kruskal to get a headstart
+	int e = 0;
+	for (int i = 0; i < mEdges; ++i)
+	{
+		e = initialKruskal.edgeIndex[i];
+		initialKruskal.activateEdge(e);
+		if(initialKruskal.getActiveEdgeCount() == nVertices - 1 ){
+			break;
+		}
+	}
+
+	int minimumSol = initialKruskal.getBranchVertexCount();
+	auto end = chrono::steady_clock::now();
+	auto dur = chrono::duration <double, milli> (end-start).count();		
+
+	cout << minimumSol << "\t" << dur << endl;
 	
 	return 0;
 }

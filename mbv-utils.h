@@ -137,7 +137,7 @@ public:
 
 	void addEdge(int u, int v) {
 		if(addedEdges == mEdges) {
-			cout<<"Already added all edges"<<endl;
+			//cout<<"Already added all edges"<<endl;
 		}
 		edges[addedEdges] = pair<int, int>(u, v);
 		vertices[u].push_front(addedEdges);
@@ -208,7 +208,7 @@ public:
 		//sort
 		sortEdges();
 
-		cout<<"Sorted!"<<endl;
+		//cout<<"Sorted!"<<endl;
 	}
 
 	MBVSolutionUndo(int bvc) : G(nullptr), branchVertexCount(bvc), activeEdgeCount(0) {}

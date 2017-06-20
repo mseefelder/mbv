@@ -13,85 +13,6 @@
 
 using namespace std;
 
-int Backtrack(Graph &G, MBVSolutionUndo &sol, int &minimumSol, auto &start, long long *pruneCount, int &depth, float &resortRatio)
-{
-	depth++;
-	bool resort = (depth <= resortRatio*G.mEdges);
-	int e = 0;
-	int pruneBin = (depth*10.0)/(G.mEdges-1);
-	//if(pruneBin > 9) cout<<"EITA "<<depth<<" "<<G.nVertices-1<<endl;
-	// Prune by inviability
-	if (sol.getBranchVertexCount() >= minimumSol || minimumSol == 0) {
-		pruneCount[pruneBin]++;
-	}
-	// A valid solution was found
-	else if (sol.getActiveEdgeCount() == G.nVertices-1) {
-		if(sol.getBranchVertexCount() < minimumSol) {
-			//cout<<"Solution "<<sol.getBranchVertexCount()<<"(";
-			//auto end = chrono::steady_clock::now();
-			//cout << chrono::duration <double, milli> (end-start).count() << " ms)" << endl;
-			minimumSol = sol.getBranchVertexCount();
-		}
-	}
-	// No solution yet
-	else{
-		for (int i = 0; i<G.mEdges; i++) {
-			e = sol.edgeIndex[i];
-
-			if(sol.getEdgeState(e) == 0) {
-				if(sol.activateEdge(e)) {
-					minimumSol = Backtrack(G, sol, minimumSol, start, pruneCount, depth, resortRatio);
-					sol.undoActivateEdge();
-				}
-
-				sol.prohibitEdge(e);
-				if(resort) sol.sortEdges();
-
-				//Try kruskal ---
-				int ke = 0;
-				int opcount = 0;
-				for (int k = 0; k < G.mEdges; ++k) {
-					ke = sol.edgeIndex[k];
-					if(sol.activateEdge(ke)) 
-					{
-						opcount++;
-					}
-					if(sol.getActiveEdgeCount() == G.nVertices - 1 ){
-						break;
-					}
-				}
-
-				if(sol.getBranchVertexCount() < minimumSol && sol.getActiveEdgeCount() == G.nVertices-1) {
-					//cout<<"Solution on Kruskal "<<sol.getBranchVertexCount()<<"(";
-					//auto end = chrono::steady_clock::now();
-					//cout << chrono::duration <double, milli> (end-start).count() << " ms)" << endl;
-					minimumSol = sol.getBranchVertexCount();
-				}
-
-				//Check if we should branch. Only branch if relaxed bound is < minimumSol and graph is connex
-				bool doBranch = (sol.getRelaxedSolution() < minimumSol) && (sol.getActiveEdgeCount() == G.nVertices-1);
-				if(!doBranch)
-						pruneCount[pruneBin]++;
-
-				for (int x = 0; x < opcount; ++x) {
-					sol.undoActivateEdge();
-				}
-
-				//
-				if(doBranch)
-						minimumSol = Backtrack(G, sol, minimumSol, start, pruneCount, depth, resortRatio);
-
-				sol.undoProhibitEdge(e);
-				if(resort) sol.sortEdges();
-				break;
-			}
-
-		}
-	}
-	depth--;
-	return minimumSol;
-}
-
 void DFS (Graph &G, unordered_set<int>* neig, unordered_set<int> &result, int source, int destination) {
 
 	//Auxiliary queue used during the algorithm
@@ -159,18 +80,6 @@ int MBVGrasp (Graph &G, int maxIter, int randomMargin) {
 	// Create solution
 	MBVSolutionUndo gS(G);
 
-	// Make edges connecting vertices with degree 1 obligatory
-	// Number of obligatory edges
-	int obl = 0;
-	//for (int i = 0; i < G.nVertices; ++i)
-	//{
-	//	if (G.vertexDegrees[i] == 1)
-	//	{
-	//		gS.activateEdge(G.vertices[i].front());
-	//		obl++;
-	//	}
-	//}
-
 	// Run maxIter iterations
 	for (int iter = 0; iter < maxIter; ++iter)
 	{
@@ -178,8 +87,8 @@ int MBVGrasp (Graph &G, int maxIter, int randomMargin) {
 		// Fill vector with edges
 		vector<int> edges;
 		edges.reserve(G.mEdges);
-		for (int e = 0; e < G.mEdges; ++e) {
-			edges.push_back(gS.edgeIndex[e]);
+		for (int ed = G.mEdges -1; ed >= 0; --ed) {
+			edges.push_back(gS.edgeIndex[ed]);
 		}
 
 		// Create vector for cycle-making edges
@@ -193,8 +102,30 @@ int MBVGrasp (Graph &G, int maxIter, int randomMargin) {
 			treeDegrees[i] = gS.vertexDegrees[i];
 		}
 
-		// Choose semi-randomly (randomMargin) with Kruskal
+		//if(iter==0) {for (int x = 0; x<G.mEdges; ) cout<<gS.edgeIndex[x]<<", "; cout<<endl;}
+
 		int e = 0, eIndex = 0, u = 0, v = 0;
+
+		// Make edges connecting vertices with degree 1 obligatory
+		/**/
+		for (int i = 0; i < G.nVertices; ++i)
+		{
+			if (G.vertexDegrees[i] == 1)
+			{
+				gS.activateEdge(G.vertices[i].front());
+				// Get vertices connected by edge and their degrees onthe tree so far
+				u = G.edges[G.vertices[i].front()].first;
+				v = G.edges[G.vertices[i].front()].second;
+				treeDegrees[u]++;
+				treeDegrees[v]++;
+				// Update neig array
+				neig[u].insert(G.vertices[i].front());
+				neig[v].insert(G.vertices[i].front());				
+			}
+		}
+		/**/
+
+		// Choose semi-randomly (randomMargin) with Kruskal
 		for (int i = 0; i < G.mEdges; ++i) {
 			// get random index (from end of vector to -randomMargin positions)
 			eIndex = uDist(engine);
@@ -234,6 +165,7 @@ int MBVGrasp (Graph &G, int maxIter, int randomMargin) {
 
 		// Current branch vertex count
 		int branchVertexCount = gS.getBranchVertexCount(); /// ALWAYS UPDATE THIS WHEN UPDATING TREE
+		//if(iter == 0) cout << branchVertexCount << endl;
 
 		/**/
 		// Add edges left from edges vector to cycleEdges vector
@@ -260,20 +192,17 @@ int MBVGrasp (Graph &G, int maxIter, int randomMargin) {
 			u = G.edges[e].first;
 			v = G.edges[e].second;
 
-			bool keepChange = false;
 			// If edge is valid candidate
 			if(treeDegrees[u] != 2 && treeDegrees[v] != 2){
 				/// Virtually add e to tree, forming a cycle C (just in degrees for now)
 				treeDegrees[u]++;
 				treeDegrees[v]++;
 				
-				/// Get sequence SEQ of edges in cycle C (some kind of 'vector<int> DFS(vector<int>[] neig, u, v, size)' function)
+				/// Get sequence SEQ of edges in cycle C
 				unordered_set<int> seq;
 				DFS(G, neig, seq, u, v);
 
-				//cout<<":: "<<u<<" --- "<<v<<endl;
-				//for (int dummy : seq) cout<<G.edges[dummy].first<<","<<G.edges[dummy].second<<" -> "; cout<<endl;
-
+				bool breakAway = false;
 				/// For each edge e'(i,j) on SEQ:
 				for (int eLine : seq){
 					uLine = G.edges[eLine].first;
@@ -283,8 +212,10 @@ int MBVGrasp (Graph &G, int maxIter, int randomMargin) {
 						/// Remove e' from tree
 						neig[uLine].erase(eLine);
 						neig[vLine].erase(eLine);
-						if(treeDegrees[uLine]-- == 3) branchVertexCount--;
-						if(treeDegrees[vLine]-- == 3) branchVertexCount--;
+						treeDegrees[uLine]--;
+						treeDegrees[vLine]--;
+						if(treeDegrees[uLine] == 2) branchVertexCount--;
+						if(treeDegrees[vLine] == 2) branchVertexCount--;
 						/// Add e' to cycleEdges
 						cycleEdges.push(eLine);
 						/// (remaining = inserted+1)
@@ -294,24 +225,28 @@ int MBVGrasp (Graph &G, int maxIter, int randomMargin) {
 						/// Add e to tree, updating parent and rank arrays
 						neig[uLine].insert(eLine);
 						neig[vLine].insert(eLine);
-						/// Make sure e will stay in tree (keepChange = true)
-						keepChange = true;
+						breakAway = true;
 						/// Break
 						break;
 					}
 				}
 
-				/// If no improvement was encountered (keepChange == false):
-				if (!keepChange) {
-					/// Undo adding e to tree
-					treeDegrees[u]--;
-					treeDegrees[v]--; 
-					/// Add e to cycleEdges
-					cycleEdges.push(e);
-					/// (inserted++)
-					inserted++;
-				}
+				if(breakAway)
+					break;
+
+				/// If no improvement was encountered
+				/// Undo adding e to tree
+				treeDegrees[u]--;
+				treeDegrees[v]--;
+				/// Add e to cycleEdges
+				cycleEdges.push(e);
+				/// (inserted++)
+				inserted++;
 			}
+			/// Add e to cycleEdges
+			cycleEdges.push(e);
+			/// (inserted++)
+			inserted++;
 			/// (remaining--)
 			remaining--;
 			
@@ -320,9 +255,10 @@ int MBVGrasp (Graph &G, int maxIter, int randomMargin) {
 
 		/// Save results
 		minBranchVertexCount = (branchVertexCount < minBranchVertexCount) ? branchVertexCount : minBranchVertexCount;
+		//if(iter == 0) cout << minBranchVertexCount << endl;
 		/// reset solution
-		for(int i = 0; i < G.nVertices - 1 - obl; ++i) {	
-			/// Undo nVertices - 1 - obl activations
+		for(int i = 0; i < G.nVertices - 1; ++i) {	
+			/// Undo nVertices - 1 activations
 			gS.undoActivateEdge();
 		}
 
@@ -337,7 +273,8 @@ int main(int argc, char const *argv[])
 	int nVertices, mEdges, trash;
 
 	cin >> nVertices >> mEdges >> trash;
-	cout << nVertices << " vertices and " << mEdges << " edges."<<endl;
+	//cout << nVertices << " vertices and " << mEdges << " edges."<<endl;
+	cout << nVertices << "\t" << mEdges << "\t";
 
 	// Create and fill Graph
 	Graph G(nVertices, mEdges);
@@ -347,62 +284,16 @@ int main(int argc, char const *argv[])
 		G.addEdge(a-1, b-1);
 	}
 
+	auto start = chrono::steady_clock::now();
 	// Calculate heuristic starting point
-	int heuristicResult = MBVGrasp (G, (int)(mEdges*0.8), (int)(mEdges*0.75));
-	cout<<"Best heuristic result: "<<heuristicResult<<endl;
+	int heuristicResult = MBVGrasp (G, (int)(mEdges*0.2), (int)(mEdges*0.15));
+	//int heuristicResult = MBVGrasp (G, 3, 2);
+	//cout<<"Best heuristic result: "<<heuristicResult<<endl;
 	int minimumSol = heuristicResult;
-	
-	int repetitions = 10;
-	auto timeAccum = chrono::duration <double, milli>(0.0).count();
-	bool first = true;
+	auto end = chrono::steady_clock::now();
+	auto dur = chrono::duration <double, milli> (end-start).count();	
 
-	float rrs[10] = {0.01, 0.025, 0.05, 0.075, 0.1, 0.15, 0.20, 0.25, 0.35, 0.50};
-
-	cout<<"rr\tsolution\tpc[0]\tpc[1]\tpc[2]\tpc[3]\tpc[4]\tpc[5]\tpc[6]\tpc[7]\tpc[8]\tpc[9]\ttime(ms)"<<endl;
-
-	for (int repetition = 0; repetition < repetitions; repetition++) {
-		// Make solution that will be used on branch and bound
-		MBVSolutionUndo S(G);
-
-		//make bridges obligatory
-		for (int i = 0; i < nVertices; ++i)
-		{
-			if (G.vertexDegrees[i] == 1)
-			{
-				S.activateEdge(G.vertices[i].front());
-			}
-		}
-
-		long long pruneCount[10] = {0,0,0,0,0,0,0,0,0,0};
-		int depth = -1;
-		float rr = rrs[repetition];
-
-		int solution = minimumSol;
-
-		auto start = chrono::steady_clock::now();
-		solution = Backtrack(G, S, solution, start, pruneCount, depth, rr);
-		auto end = chrono::steady_clock::now();
-		auto dur = chrono::duration <double, milli> (end-start).count();
-
-		cout<<rr<<"\t"<<solution<<"\t";
-		for(long long pc : pruneCount) cout<<pc<<"\t";
-		cout<<dur<<endl;
-
-		if(first){
-			timeAccum = dur;
-			first = false;
-		}
-		else {
-			timeAccum += dur;
-		}
-		
-	}
-	
-
-
-	//cout << "Solution has " << minimumSol << " branch vertices! (mean time: ";
-	cout << "(" << timeAccum/(float)(repetitions) << " ms), ";
-	cout << endl;
+	cout << minimumSol << "\t" << dur << endl;
 	
 	return 0;
 }
