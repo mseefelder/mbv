@@ -13,23 +13,19 @@
 
 using namespace std;
 
-int Backtrack(Graph &G, MBVSolutionUndo &sol, int &minimumSol, auto &start, int &depth, float &resortRatio)
+int BranchAndBound(Graph &G, MBVSolutionUndo &sol, int &minimumSol, auto &start, int &depth, float &resortRatio)
 {
 	depth++;
 	bool resort = (depth <= resortRatio*G.mEdges);
 	int e = 0;
-	int pruneBin = (depth*10.0)/(G.mEdges-1);
-	//if(pruneBin > 9) cout<<"EITA "<<depth<<" "<<G.nVertices-1<<endl;
+	
 	// Prune by inviability
 	if (sol.getBranchVertexCount() >= minimumSol || minimumSol == 0) {
-		
+		// do nothing
 	}
 	// A valid solution was found
 	else if (sol.getActiveEdgeCount() == G.nVertices-1) {
 		if(sol.getBranchVertexCount() < minimumSol) {
-			//cout<<"Solution "<<sol.getBranchVertexCount()<<"(";
-			//auto end = chrono::steady_clock::now();
-			//cout << chrono::duration <double, milli> (end-start).count() << " ms)" << endl;
 			minimumSol = sol.getBranchVertexCount();
 		}
 	}
@@ -40,7 +36,7 @@ int Backtrack(Graph &G, MBVSolutionUndo &sol, int &minimumSol, auto &start, int 
 
 			if(sol.getEdgeState(e) == 0) {
 				if(sol.activateEdge(e)) {
-					minimumSol = Backtrack(G, sol, minimumSol, start, depth, resortRatio);
+					minimumSol = BranchAndBound(G, sol, minimumSol, start, depth, resortRatio);
 					sol.undoActivateEdge();
 				}
 
@@ -62,9 +58,6 @@ int Backtrack(Graph &G, MBVSolutionUndo &sol, int &minimumSol, auto &start, int 
 				}
 
 				if(sol.getBranchVertexCount() < minimumSol && sol.getActiveEdgeCount() == G.nVertices-1) {
-					//cout<<"Solution on Kruskal "<<sol.getBranchVertexCount()<<"(";
-					//auto end = chrono::steady_clock::now();
-					//cout << chrono::duration <double, milli> (end-start).count() << " ms)" << endl;
 					minimumSol = sol.getBranchVertexCount();
 				}
 
@@ -77,7 +70,7 @@ int Backtrack(Graph &G, MBVSolutionUndo &sol, int &minimumSol, auto &start, int 
 
 				//
 				if(doBranch)
-						minimumSol = Backtrack(G, sol, minimumSol, start, depth, resortRatio);
+						minimumSol = BranchAndBound(G, sol, minimumSol, start, depth, resortRatio);
 
 				sol.undoProhibitEdge(e);
 				if(resort) sol.sortEdges();
@@ -96,7 +89,6 @@ int main(int argc, char const *argv[])
 	int nVertices, mEdges, trash;
 
 	cin >> nVertices >> mEdges >> trash;
-	//cout << nVertices << " vertices and " << mEdges << " edges."<<endl;
 	cout << nVertices << "\t" << mEdges << "\t";
 
 	// Create and fill Graph
@@ -135,7 +127,7 @@ int main(int argc, char const *argv[])
 		int solution = minimumSol;
 
 		auto start = chrono::steady_clock::now();
-		solution = Backtrack(G, S, solution, start, depth, rr);
+		solution = BranchAndBound(G, S, solution, start, depth, rr);
 		auto end = chrono::steady_clock::now();
 		auto dur = chrono::duration <double, milli> (end-start).count();
 
