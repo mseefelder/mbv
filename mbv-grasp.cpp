@@ -286,8 +286,8 @@ int main(int argc, char const *argv[])
 
 	auto start = chrono::steady_clock::now();
 	// Calculate heuristic starting point
-	int heuristicResult = MBVGrasp (G, (int)(mEdges*0.2), (int)(mEdges*0.15));
-	//int heuristicResult = MBVGrasp (G, 3, 2);
+	//int heuristicResult = MBVGrasp (G, (int)(mEdges*0.2), (int)(mEdges*0.15));
+	int heuristicResult = MBVGrasp (G, 50, 25);
 	//cout<<"Best heuristic result: "<<heuristicResult<<endl;
 	int minimumSol = heuristicResult;
 	auto end = chrono::steady_clock::now();
